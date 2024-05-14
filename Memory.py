@@ -12,8 +12,8 @@ class MemoryGame:
         self.canvas.grid(row=1, column=1)
         
         # Initial screen with title and logo
-        self.title_text = self.canvas.create_text(400, 350, text='Memory', fill='red', font=('Arial', 44, 'bold'))
-        self.logo_text = self.canvas.create_text(400, 400, text='How quick are you?', fill='black', font=('Arial', 24))
+        self.title_text = self.canvas.create_text(400, 350, text='Memory', fill='red', font=('DejaVu Sans', 44, 'bold'))
+        self.logo_text = self.canvas.create_text(400, 400, text='How quick are you?', fill='black', font=('DejaVu Sans', 24))
 
         # Toolbar with game control buttons
         toolbar = tk.Frame(root)
@@ -29,12 +29,15 @@ class MemoryGame:
         self.tiles = {}
         self.selected = []
         self.game_active = False
+        self.selection_allowed = True
+        self.timer_running = False
         self.completed_text = None
 
     def start_game(self):
         if self.game_active and self.completed_text:
             self.canvas.delete(self.completed_text)
         self.game_active = True
+        self.selection_allowed = True
         self.canvas.delete(self.title_text)
         self.canvas.delete(self.logo_text)
         self.setup_game()
@@ -59,31 +62,34 @@ class MemoryGame:
             self.canvas.tag_bind(tile, '<Button-1>', lambda event, t=tile: self.on_tile_click(t))
 
     def on_tile_click(self, tile):
-        if not self.game_active:
+        if not self.game_active or not self.selection_allowed or self.tiles[tile][1] or tile in self.selected:
             return
-        if self.tiles[tile][1]:  # If already matched, ignore
-            return
-        if tile in self.selected:
-            return  # Already selected
-        color = self.tiles[tile][0]
-        self.canvas.itemconfig(tile, fill=color)
+
+        self.canvas.itemconfig(tile, fill=self.tiles[tile][0])
         self.selected.append(tile)
 
         if len(self.selected) == 2:
+            self.selection_allowed = False  # Lock selection
             if self.tiles[self.selected[0]][0] == self.tiles[self.selected[1]][0]:
-                self.tiles[self.selected[0]] = (self.tiles[self.selected[0]][0], True)
-                self.tiles[self.selected[1]] = (self.tiles[self.selected[1]][0], True)
-                self.selected.clear()
-                if all(matched for color, matched in self.tiles.values()):
-                    self.game_active = False
-                    self.show_completed_message()
+                self.process_match()
             else:
                 self.root.after(500, self.hide_tiles)
+
+    def process_match(self):
+        self.tiles[self.selected[0]] = (self.tiles[self.selected[0]][0], True)
+        self.tiles[self.selected[1]] = (self.tiles[self.selected[1]][0], True)
+        self.selected.clear()
+        self.selection_allowed = True
+
+        if all(matched for _, matched in self.tiles.values()):
+            self.game_active = False
+            self.show_completed_message()
 
     def hide_tiles(self):
         for tile in self.selected:
             self.canvas.itemconfig(tile, fill='lightgrey')
         self.selected.clear()
+        self.selection_allowed = True  # Unlock selection
 
     def start_timer(self):
         self.start_time = time.time()
@@ -100,7 +106,10 @@ class MemoryGame:
 
     def show_completed_message(self):
         self.timer_running = False
-        self.completed_text = self.canvas.create_text(400, 400, text='Completed!', fill='black', font=('Arial', 44, 'bold'))
+        elapsed_time = int(time.time() - self.start_time)
+        minutes, seconds = divmod(elapsed_time, 60)
+        time_str = f'Total time: {minutes:02}:{seconds:02}'
+        self.completed_text = self.canvas.create_text(400, 400, text=time_str, fill='black', font=('Liberation Sans', 44, 'bold'))
 
 def main():
     root = tk.Tk()
